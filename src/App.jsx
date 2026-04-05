@@ -548,8 +548,8 @@ function App() {
             <button className="rules-close" onClick={() => setIsRulesOpen(false)}>✕</button>
             <h2 className="rules-title">📜 ПРАВИЛА ТА УМОВИ</h2>
             <div className="rules-images">
-              <img src="/images/rules1.jpg" alt="Правило 1" />
-              <img src="/images/rules2.jpg" alt="Правило 2" />
+              <img src="images/rules1.jpg" alt="Правило 1" />
+              <img src="images/rules2.jpg" alt="Правило 2" />
             </div>
             <div className="rules-text">
               ✔️ПЕРЕД ЗАМОВЛЕННЯМ УВАЖНО ПРОЧИТАТИ ЦІ ПРАВИЛА ✔️
