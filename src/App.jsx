@@ -259,11 +259,14 @@ function App() {
     }, 1000);
   };
 
+  // ========== ИСПРАВЛЕННАЯ ФУНКЦИЯ ОФОРМЛЕНИЯ ЗАКАЗА ==========
   const handleCheckout = () => {
+    if (cart.length === 0) return;
     const orderList = cart.map(item => `- ${item.name} (${item.chosenSize}): ${item.price} UAH`).join('\n');
     const total = cart.reduce((sum, item) => sum + parseInt(item.price.replace(/\s/g, '')), 0);
     const text = encodeURIComponent(`Вітаю! Хочу зробити замовлення:\n\n${orderList}\n\nРазом: ${total} UAH`);
-    window.open(`https://t.me/sskarletren?text=${text}`, '_blank');
+    // Отправляем менеджеру @leg1t_store
+    window.open(`https://t.me/leg1t_store?text=${text}`, '_blank');
     setCart([]);
     setIsCartOpen(false);
   };
@@ -489,7 +492,8 @@ function App() {
             <div className="footer-column">
               <h4>Соцмережі</h4>
               <span>Instagram</span>
-              <span>Telegram</span>
+              {/* КЛИКАБЕЛЬНЫЙ TELEGRAM */}
+              <span onClick={() => window.open('https://t.me/+4E96rGDoMpAwZThi', '_blank')} style={{ cursor: 'pointer' }}>Telegram</span>
               <span>TikTok</span>
             </div>
           </div>
