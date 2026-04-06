@@ -3,7 +3,7 @@ import { initializeApp } from 'firebase/app';
 import { getFirestore, collection, onSnapshot, addDoc, deleteDoc, doc, updateDoc } from 'firebase/firestore';
 import { getAnalytics } from 'firebase/analytics';
 
-// ========== ВАША КОНФИГУРАЦИЯ FIREBASE ==========
+// ========== КОНФИГУРАЦИЯ FIREBASE (ВАША) ==========
 const firebaseConfig = {
   apiKey: "AIzaSyA14H8Wsap6DPSe8VRj8V4uOkv-GKxRmJs",
   authDomain: "legitstore-shop.firebaseapp.com",
@@ -19,8 +19,22 @@ const app = initializeApp(firebaseConfig);
 const analytics = getAnalytics(app);
 const db = getFirestore(app);
 
+// Дефолтные товары (если в localStorage пусто)
+const defaultProducts = [
+  { id: 1, name: "Товар 1", price: "3 200", desc: "Преміальний комфорт та футуристичний силует.", sizes: ["37","38","39","40","41","42","43","44","45"], category: "Кросівки", images: ["https://via.placeholder.com/150"], currentImageIndex: 0 },
+  { id: 2, name: "Товар 2", price: "5 700", desc: "Масивний дизайн у стилі нульових.", sizes: ["37","38","39","40","41","42","43","44","45"], category: "Кеди", images: ["https://via.placeholder.com/150"], currentImageIndex: 0 },
+  { id: 3, name: "Товар 3", price: "5 000", desc: "Спортивна естетика в деконструйованому стилі.", sizes: ["37","38","39","40","41","42","43","44","45"], category: "Кросівки", images: ["https://via.placeholder.com/150"], currentImageIndex: 0 },
+  { id: 4, name: "Товар 4", price: "1 800", desc: "Джинси кльош з ідеальною посадкою.", sizes: ["S","M","L","XL"], category: "Штани та джинси", images: ["https://via.placeholder.com/150"], currentImageIndex: 0 },
+  { id: 5, name: "Товар 5", price: "2 600", desc: "Класичний світшот з м'якої бавовни.", sizes: ["S","M","L","XL"], category: "Худі та світшоти", images: ["https://via.placeholder.com/150"], currentImageIndex: 0 },
+  { id: 6, name: "Товар 6", price: "4 200", desc: "Легендарний силует для повсякденного стилю.", sizes: ["37","38","39","40","41","42","43","44","45"], category: "Кросівки", images: ["https://via.placeholder.com/150"], currentImageIndex: 0 },
+  { id: 7, name: "Товар 7", price: "900", desc: "Базова біла футболка оверсайз.", sizes: ["S","M","L","XL"], category: "Футболки", images: ["https://via.placeholder.com/150"], currentImageIndex: 0 },
+  { id: 8, name: "Товар 8", price: "900", desc: "Футболка з яскравим принтом.", sizes: ["S","M","L","XL"], category: "Футболки", images: ["https://via.placeholder.com/150"], currentImageIndex: 0 },
+  { id: 9, name: "Товар 9", price: "2 100", desc: "Зручне зіп-худі на кожен день.", sizes: ["S","M","L","XL"], category: "Худі та світшоти", images: ["https://via.placeholder.com/150"], currentImageIndex: 0 },
+  { id: 10, name: "Товар 10", price: "1 950", desc: "Широкі джинси з щільного деніму.", sizes: ["S","M","L","XL"], category: "Штани та джинси", images: ["https://via.placeholder.com/150"], currentImageIndex: 0 },
+];
+
 function App() {
-  // ========== ВСЕ ХУКИ НА ВЕРХНЕМ УРОВНЕ ==========
+  // ========== ВСЕ ХУКИ ==========
   const [isAdmin, setIsAdmin] = useState(false);
   const [clicks, setClicks] = useState(0);
   const [isVisible, setIsVisible] = useState(false);
@@ -33,19 +47,46 @@ function App() {
   const [selectedCategory, setSelectedCategory] = useState('Всі');
   const [searchQuery, setSearchQuery] = useState('');
   const [isRulesOpen, setIsRulesOpen] = useState(false);
-  const [products, setProducts] = useState([]); // данные из Firestore
-  const [loading, setLoading] = useState(true);
 
-  // Корзина остаётся в localStorage
+  // Инициализация товаров: сначала из localStorage (для мгновенного отображения)
+  const [products, setProducts] = useState(() => {
+    const saved = localStorage.getItem('legitstore_products');
+    if (saved) {
+      try {
+        return JSON.parse(saved);
+      } catch(e) {
+        return defaultProducts;
+      }
+    }
+    return defaultProducts;
+  });
+
   const [cart, setCart] = useState(() => {
     const savedCart = localStorage.getItem('legitstore_cart');
     return savedCart ? JSON.parse(savedCart) : [];
   });
 
-  // Сохранение корзины
+  // Сохранение корзины в localStorage
   useEffect(() => {
     localStorage.setItem('legitstore_cart', JSON.stringify(cart));
   }, [cart]);
+
+  // ========== ПОДПИСКА НА FIRESTORE (РЕАЛЬНОЕ ВРЕМЯ) ==========
+  useEffect(() => {
+    const productsRef = collection(db, 'products');
+    const unsubscribe = onSnapshot(productsRef, (snapshot) => {
+      const productsList = snapshot.docs.map(doc => ({
+        id: doc.id,
+        ...doc.data()
+      }));
+      // Обновляем состояние и сохраняем в localStorage
+      setProducts(productsList);
+      localStorage.setItem('legitstore_products', JSON.stringify(productsList));
+    }, (error) => {
+      console.error("Ошибка загрузки товаров из Firestore:", error);
+    });
+    return () => unsubscribe();
+  }, []);
 
   // Telegram WebApp
   useEffect(() => {
@@ -55,23 +96,6 @@ function App() {
       tg.expand();
       tg.setHeaderColor('#1a73e8');
     }
-  }, []);
-
-  // ========== ПОДПИСКА НА ТОВАРЫ ИЗ FIRESTORE (РЕАЛЬНОЕ ВРЕМЯ) ==========
-  useEffect(() => {
-    const productsRef = collection(db, 'products');
-    const unsubscribe = onSnapshot(productsRef, (snapshot) => {
-      const productsList = snapshot.docs.map(doc => ({
-        id: doc.id,
-        ...doc.data()
-      }));
-      setProducts(productsList);
-      setLoading(false);
-    }, (error) => {
-      console.error("Ошибка загрузки товаров:", error);
-      setLoading(false);
-    });
-    return () => unsubscribe();
   }, []);
 
   // Refs для анимации
@@ -233,7 +257,7 @@ function App() {
     }
   };
 
-  // Вспомогательные функции (для совместимости)
+  // Вспомогательные функции (для совместимости, не используются напрямую)
   const nextImg = (productId, e) => {
     e.stopPropagation();
     const product = products.find(p => p.id === productId);
@@ -324,10 +348,6 @@ function App() {
     { name: "Влад", text: "Легіт чек пройшли, все чітко. Респект магазину." }
   ];
 
-  if (loading) {
-    return <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '100vh' }}>Завантаження товарів...</div>;
-  }
-
   return (
     <div style={{ backgroundColor: '#fff', color: '#000', minHeight: '100vh', fontFamily: "'Inter', sans-serif", opacity: isVisible ? 1 : 0, transition: 'opacity 0.8s', overflowX: 'hidden', position: 'relative', display: 'flex', flexDirection: 'column' }}>
       <div className="top-glow-bar"></div>
@@ -342,7 +362,7 @@ function App() {
         </div>
       </header>
 
-      {/* АДМИН-ПАНЕЛЬ (доступна только если ширина ≥1024px и isAdmin true) */}
+      {/* АДМИН-ПАНЕЛЬ (доступна только на ПК) */}
       {isAdmin && window.innerWidth >= 1024 && (
         <div className="admin-panel-modern">
           <div className="admin-panel-header">
@@ -374,7 +394,7 @@ function App() {
         </div>
       )}
 
-      {/* Оверлей и драверы (без изменений) */}
+      {/* Оверлей и драверы */}
       <div className={`drawer-overlay ${isMenuOpen || isCartOpen ? 'visible' : ''}`} onClick={() => { setIsMenuOpen(false); setIsCartOpen(false); }}></div>
 
       <div className={`side-drawer left-drawer ${isMenuOpen ? 'open' : ''}`}>
@@ -610,7 +630,6 @@ function App() {
       )}
 
       <style>{`
-        /* ========== ВСЕ ВАШИ СТИЛИ (ПОЛНОСТЬЮ СОХРАНЕНЫ) ========== */
         * { scrollbar-width: none; -ms-overflow-style: none; }
         *::-webkit-scrollbar { display: none; }
         @keyframes rotate3d { 0% { transform: rotateY(0deg); } 100% { transform: rotateY(360deg); } }
