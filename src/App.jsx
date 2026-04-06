@@ -1,4 +1,23 @@
 import { useState, useEffect, useRef } from 'react';
+import { initializeApp } from 'firebase/app';
+import { getFirestore, collection, onSnapshot, addDoc, deleteDoc, doc, updateDoc } from 'firebase/firestore';
+import { getAnalytics } from 'firebase/analytics';
+
+// ========== ВАША КОНФИГУРАЦИЯ FIREBASE ==========
+const firebaseConfig = {
+  apiKey: "AIzaSyA14H8Wsap6DPSe8VRj8V4uOkv-GKxRmJs",
+  authDomain: "legitstore-shop.firebaseapp.com",
+  projectId: "legitstore-shop",
+  storageBucket: "legitstore-shop.firebasestorage.app",
+  messagingSenderId: "377068724418",
+  appId: "1:377068724418:web:9844cfa7b0d09239015b5b",
+  measurementId: "G-1SPTTZYXLS"
+};
+
+// Инициализация Firebase
+const app = initializeApp(firebaseConfig);
+const analytics = getAnalytics(app);
+const db = getFirestore(app);
 
 function App() {
   // ========== ВСЕ ХУКИ НА ВЕРХНЕМ УРОВНЕ ==========
@@ -13,36 +32,17 @@ function App() {
   const [isClosingModal, setIsClosingModal] = useState(false);
   const [selectedCategory, setSelectedCategory] = useState('Всі');
   const [searchQuery, setSearchQuery] = useState('');
-  const [isRulesOpen, setIsRulesOpen] = useState(false); // состояние для попапа правил
+  const [isRulesOpen, setIsRulesOpen] = useState(false);
+  const [products, setProducts] = useState([]); // данные из Firestore
+  const [loading, setLoading] = useState(true);
 
-  // Загрузка товаров из localStorage или дефолтные
-  const [products, setProducts] = useState(() => {
-    const saved = localStorage.getItem('legitstore_products');
-    if (saved) return JSON.parse(saved);
-    return [
-      { id: 1, name: "Товар 1", price: "3 200", desc: "Преміальний комфорт та футуристичний силует.", sizes: ["37","38","39","40","41","42","43","44","45"], category: "Кросівки", images: ["https://via.placeholder.com/150"], currentImageIndex: 0 },
-      { id: 2, name: "Товар 2", price: "5 700", desc: "Масивний дизайн у стилі нульових.", sizes: ["37","38","39","40","41","42","43","44","45"], category: "Кеди", images: ["https://via.placeholder.com/150"], currentImageIndex: 0 },
-      { id: 3, name: "Товар 3", price: "5 000", desc: "Спортивна естетика в деконструйованому стилі.", sizes: ["37","38","39","40","41","42","43","44","45"], category: "Кросівки", images: ["https://via.placeholder.com/150"], currentImageIndex: 0 },
-      { id: 4, name: "Товар 4", price: "1 800", desc: "Джинси кльош з ідеальною посадкою.", sizes: ["S","M","L","XL"], category: "Штани та джинси", images: ["https://via.placeholder.com/150"], currentImageIndex: 0 },
-      { id: 5, name: "Товар 5", price: "2 600", desc: "Класичний світшот з м'якої бавовни.", sizes: ["S","M","L","XL"], category: "Худі та світшоти", images: ["https://via.placeholder.com/150"], currentImageIndex: 0 },
-      { id: 6, name: "Товар 6", price: "4 200", desc: "Легендарний силует для повсякденного стилю.", sizes: ["37","38","39","40","41","42","43","44","45"], category: "Кросівки", images: ["https://via.placeholder.com/150"], currentImageIndex: 0 },
-      { id: 7, name: "Товар 7", price: "900", desc: "Базова біла футболка оверсайз.", sizes: ["S","M","L","XL"], category: "Футболки", images: ["https://via.placeholder.com/150"], currentImageIndex: 0 },
-      { id: 8, name: "Товар 8", price: "900", desc: "Футболка з яскравим принтом.", sizes: ["S","M","L","XL"], category: "Футболки", images: ["https://via.placeholder.com/150"], currentImageIndex: 0 },
-      { id: 9, name: "Товар 9", price: "2 100", desc: "Зручне зіп-худі на кожен день.", sizes: ["S","M","L","XL"], category: "Худі та світшоти", images: ["https://via.placeholder.com/150"], currentImageIndex: 0 },
-      { id: 10, name: "Товар 10", price: "1 950", desc: "Широкі джинси з щільного деніму.", sizes: ["S","M","L","XL"], category: "Штани та джинси", images: ["https://via.placeholder.com/150"], currentImageIndex: 0 },
-    ];
-  });
-
+  // Корзина остаётся в localStorage
   const [cart, setCart] = useState(() => {
     const savedCart = localStorage.getItem('legitstore_cart');
     return savedCart ? JSON.parse(savedCart) : [];
   });
 
-  // Сохранение товаров и корзины в localStorage
-  useEffect(() => {
-    localStorage.setItem('legitstore_products', JSON.stringify(products));
-  }, [products]);
-
+  // Сохранение корзины
   useEffect(() => {
     localStorage.setItem('legitstore_cart', JSON.stringify(cart));
   }, [cart]);
@@ -57,7 +57,24 @@ function App() {
     }
   }, []);
 
-  // Refs
+  // ========== ПОДПИСКА НА ТОВАРЫ ИЗ FIRESTORE (РЕАЛЬНОЕ ВРЕМЯ) ==========
+  useEffect(() => {
+    const productsRef = collection(db, 'products');
+    const unsubscribe = onSnapshot(productsRef, (snapshot) => {
+      const productsList = snapshot.docs.map(doc => ({
+        id: doc.id,
+        ...doc.data()
+      }));
+      setProducts(productsList);
+      setLoading(false);
+    }, (error) => {
+      console.error("Ошибка загрузки товаров:", error);
+      setLoading(false);
+    });
+    return () => unsubscribe();
+  }, []);
+
+  // Refs для анимации
   const shopRef = useRef(null);
   const sliderRef = useRef(null);
   const allProductsRef = useRef(null);
@@ -65,12 +82,9 @@ function App() {
   // Анимация при скролле
   useEffect(() => {
     setIsVisible(true);
-
     const observer = new IntersectionObserver((entries) => {
       entries.forEach(entry => {
-        if (entry.isIntersecting) {
-          entry.target.classList.add('is-visible');
-        }
+        if (entry.isIntersecting) entry.target.classList.add('is-visible');
       });
     }, { threshold: 0.1, rootMargin: "0px 0px -50px 0px" });
 
@@ -90,7 +104,13 @@ function App() {
   }, [selectedCategory, searchQuery]);
 
   // ========== ОБРАБОТЧИКИ ==========
+  // Вход в админку только с ПК (ширина >= 1024px)
   const handleSecretClick = () => {
+    if (window.innerWidth < 1024) {
+      alert("Адмін-панель доступна тільки на ПК (ширина екрана ≥ 1024px)");
+      setClicks(0);
+      return;
+    }
     setClicks(prev => prev + 1);
     if (clicks + 1 === 5) {
       const pass = prompt("Введіть адмін-пароль:");
@@ -103,40 +123,47 @@ function App() {
     setTimeout(() => setClicks(0), 2000);
   };
 
-  // Добавление товара с несколькими фото
-  const handleAddProduct = () => {
-    const name = document.getElementById('p-name')?.value;
-    const price = document.getElementById('p-price')?.value;
+  // Добавление товара в Firestore (с загрузкой фото в base64)
+  const handleAddProduct = async () => {
+    const name = document.getElementById('p-name')?.value.trim();
+    const price = document.getElementById('p-price')?.value.trim();
     const category = document.getElementById('p-category')?.value;
-    const desc = document.getElementById('p-desc')?.value;
+    const desc = document.getElementById('p-desc')?.value.trim();
     const fileInput = document.getElementById('p-file');
     const files = fileInput?.files ? Array.from(fileInput.files) : [];
 
     if (!name || !price || !category) {
-      return alert("Заповніть назву, ціну та категорію!");
+      alert("Заповніть назву, ціну та категорію!");
+      return;
     }
 
-    const saveFinalItem = (readyImages) => {
+    const saveToFirestore = async (imagesArray) => {
       const newItem = {
-        id: Date.now(),
         name,
         price,
         category,
         description: desc || "",
-        images: readyImages.length ? readyImages : ["https://via.placeholder.com/150"],
+        images: imagesArray.length ? imagesArray : ["https://via.placeholder.com/150"],
         currentImageIndex: 0,
         sizes: category === "Кросівки" || category === "Кеди" 
           ? ["37","38","39","40","41","42","43","44","45"] 
-          : ["S","M","L","XL"]
+          : ["S","M","L","XL"],
+        createdAt: Date.now()
       };
-      setProducts(prev => [newItem, ...prev]);
-      alert(`Товар успішно додано! Фото: ${readyImages.length}`);
-      
-      // Очистка формы
-      document.getElementById('p-name').value = '';
-      document.getElementById('p-price').value = '';
-      document.getElementById('p-desc').value = '';
-      if(fileInput) fileInput.value = '';
+      try {
+        await addDoc(collection(db, 'products'), newItem);
+        alert(`Товар успішно додано! Фото: ${imagesArray.length}`);
+        // Очистка формы
+        document.getElementById('p-name').value = '';
+        document.getElementById('p-price').value = '';
+        document.getElementById('p-desc').value = '';
+        if (fileInput) fileInput.value = '';
+        const categorySelect = document.getElementById('p-category');
+        if (categorySelect) categorySelect.value = '';
+      } catch (error) {
+        console.error("Помилка додавання товару:", error);
+        alert("Не вдалося додати товар. Спробуйте ще раз.");
+      }
     };
 
     if (files.length > 0) {
@@ -147,72 +174,83 @@ function App() {
         reader.onloadend = () => {
           imagesArray.push(reader.result);
           processed++;
-          if (processed === files.length) saveFinalItem(imagesArray);
+          if (processed === files.length) saveToFirestore(imagesArray);
+        };
+        reader.onerror = () => {
+          alert("Помилка читання файлу: " + file.name);
+          processed++;
+          if (processed === files.length && imagesArray.length === 0) saveToFirestore([]);
         };
         reader.readAsDataURL(file);
       });
     } else {
-      saveFinalItem([]);
+      saveToFirestore([]);
     }
   };
 
-  // Удаление товара (только для админа)
-  const handleDeleteProduct = (productId, e) => {
+  // Удаление товара из Firestore (только для админа)
+  const handleDeleteProduct = async (productId, e) => {
     e.stopPropagation();
     if (window.confirm("Видалити цей товар?")) {
-      setProducts(prev => prev.filter(p => p.id !== productId));
+      try {
+        await deleteDoc(doc(db, 'products', productId));
+        // Товар исчезнет из всех устройств автоматически
+      } catch (error) {
+        console.error("Помилка видалення товару:", error);
+        alert("Не вдалося видалити товар.");
+      }
     }
   };
 
-  // Переключение изображений в модалке
-  const handleModalNext = (e) => {
+  // Переключение изображений в модалке (синхронизация индекса в Firestore)
+  const handleModalNext = async (e) => {
     e.stopPropagation();
     if (!selectedProduct) return;
     const productId = selectedProduct.id;
     const product = products.find(p => p.id === productId);
     if (!product) return;
     const newIndex = (product.currentImageIndex + 1) % product.images.length;
-    setProducts(prev => prev.map(p => 
-      p.id === productId ? { ...p, currentImageIndex: newIndex } : p
-    ));
-    setSelectedProduct(prev => ({ ...prev, currentImageIndex: newIndex }));
+    try {
+      await updateDoc(doc(db, 'products', productId), { currentImageIndex: newIndex });
+      setSelectedProduct(prev => ({ ...prev, currentImageIndex: newIndex }));
+    } catch (error) {
+      console.error("Помилка зміни фото:", error);
+    }
   };
 
-  const handleModalPrev = (e) => {
+  const handleModalPrev = async (e) => {
     e.stopPropagation();
     if (!selectedProduct) return;
     const productId = selectedProduct.id;
     const product = products.find(p => p.id === productId);
     if (!product) return;
     const newIndex = product.currentImageIndex === 0 ? product.images.length - 1 : product.currentImageIndex - 1;
-    setProducts(prev => prev.map(p => 
-      p.id === productId ? { ...p, currentImageIndex: newIndex } : p
-    ));
-    setSelectedProduct(prev => ({ ...prev, currentImageIndex: newIndex }));
+    try {
+      await updateDoc(doc(db, 'products', productId), { currentImageIndex: newIndex });
+      setSelectedProduct(prev => ({ ...prev, currentImageIndex: newIndex }));
+    } catch (error) {
+      console.error("Помилка зміни фото:", error);
+    }
   };
 
+  // Вспомогательные функции (для совместимости)
   const nextImg = (productId, e) => {
-    if (e) e.stopPropagation();
-    setProducts(prev => prev.map(p => {
-      if (p.id === productId) {
-        const nextIdx = (p.currentImageIndex || 0) + 1;
-        return { ...p, currentImageIndex: nextIdx >= p.images.length ? 0 : nextIdx };
-      }
-      return p;
-    }));
+    e.stopPropagation();
+    const product = products.find(p => p.id === productId);
+    if (!product) return;
+    const nextIdx = (product.currentImageIndex + 1) % product.images.length;
+    updateDoc(doc(db, 'products', productId), { currentImageIndex: nextIdx });
   };
 
   const prevImg = (productId, e) => {
-    if (e) e.stopPropagation();
-    setProducts(prev => prev.map(p => {
-      if (p.id === productId) {
-        const prevIdx = (p.currentImageIndex || 0) - 1;
-        return { ...p, currentImageIndex: prevIdx < 0 ? p.images.length - 1 : prevIdx };
-      }
-      return p;
-    }));
+    e.stopPropagation();
+    const product = products.find(p => p.id === productId);
+    if (!product) return;
+    const prevIdx = product.currentImageIndex === 0 ? product.images.length - 1 : product.currentImageIndex - 1;
+    updateDoc(doc(db, 'products', productId), { currentImageIndex: prevIdx });
   };
 
+  // Фильтрация товаров
   const filteredProducts = products.filter(item => {
     const matchesCategory = selectedCategory === 'Всі' || item.category === selectedCategory;
     const matchesSearch = item.name.toLowerCase().includes(searchQuery.toLowerCase());
@@ -259,13 +297,11 @@ function App() {
     }, 1000);
   };
 
-  // ========== ИСПРАВЛЕННАЯ ФУНКЦИЯ ОФОРМЛЕНИЯ ЗАКАЗА ==========
   const handleCheckout = () => {
     if (cart.length === 0) return;
     const orderList = cart.map(item => `- ${item.name} (${item.chosenSize}): ${item.price} UAH`).join('\n');
     const total = cart.reduce((sum, item) => sum + parseInt(item.price.replace(/\s/g, '')), 0);
     const text = encodeURIComponent(`Вітаю! Хочу зробити замовлення:\n\n${orderList}\n\nРазом: ${total} UAH`);
-    // Отправляем менеджеру @leg1t_store
     window.open(`https://t.me/leg1t_store?text=${text}`, '_blank');
     setCart([]);
     setIsCartOpen(false);
@@ -273,15 +309,13 @@ function App() {
 
   const CloseIcon = ({ onClick }) => (
     <div onClick={onClick} className="close-icon-wrapper">
-      <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+      <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
         <line x1="18" y1="6" x2="6" y2="18"></line>
         <line x1="6" y1="6" x2="18" y2="18"></line>
       </svg>
     </div>
   );
 
-  const shoeSizes = ["37", "38", "39", "40", "41", "42", "43", "44", "45"];
-  const clothingSizes = ["S", "M", "L", "XL"];
   const fakeReviewsBase = [
     { name: "Діма", text: "Якість просто пушка! Рекомендую однозначно." },
     { name: "Оля", text: "Оригінал 100%, розмір підійшов ідеально, дякую!" },
@@ -289,6 +323,10 @@ function App() {
     { name: "Катя", text: "Дуже зручні, виглядають вживу ще краще, ніж на фото." },
     { name: "Влад", text: "Легіт чек пройшли, все чітко. Респект магазину." }
   ];
+
+  if (loading) {
+    return <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '100vh' }}>Завантаження товарів...</div>;
+  }
 
   return (
     <div style={{ backgroundColor: '#fff', color: '#000', minHeight: '100vh', fontFamily: "'Inter', sans-serif", opacity: isVisible ? 1 : 0, transition: 'opacity 0.8s', overflowX: 'hidden', position: 'relative', display: 'flex', flexDirection: 'column' }}>
@@ -304,8 +342,8 @@ function App() {
         </div>
       </header>
 
-      {/* АДМИН-ПАНЕЛЬ */}
-      {isAdmin && (
+      {/* АДМИН-ПАНЕЛЬ (доступна только если ширина ≥1024px и isAdmin true) */}
+      {isAdmin && window.innerWidth >= 1024 && (
         <div className="admin-panel-modern">
           <div className="admin-panel-header">
             <h2>⚡ Панель керування</h2>
@@ -336,7 +374,7 @@ function App() {
         </div>
       )}
 
-      {/* Оверлей и драверы */}
+      {/* Оверлей и драверы (без изменений) */}
       <div className={`drawer-overlay ${isMenuOpen || isCartOpen ? 'visible' : ''}`} onClick={() => { setIsMenuOpen(false); setIsCartOpen(false); }}></div>
 
       <div className={`side-drawer left-drawer ${isMenuOpen ? 'open' : ''}`}>
@@ -432,7 +470,7 @@ function App() {
             <button className="slider-nav-btn prev" onClick={() => scrollSlider('left')}>◀</button>
             <div className="products-scroll-container" ref={sliderRef}>
               {products.map((item) => (
-                <div key={`drop-${item.id}`} onClick={() => setSelectedProduct(item)} className="product-scroll-anim">
+                <div key={item.id} onClick={() => setSelectedProduct(item)} className="product-scroll-anim">
                   <div className="product-card-container" style={{ position: 'relative' }}>
                     {isAdmin && <div className="delete-icon" onClick={(e) => handleDeleteProduct(item.id, e)}>🗑️</div>}
                     <div className="product-bg">
@@ -460,7 +498,7 @@ function App() {
           ) : (
             <div className="all-products-grid">
               {filteredProducts.map((item) => (
-                <div key={`all-${item.id}`} onClick={() => setSelectedProduct(item)} className="product-scroll-anim">
+                <div key={item.id} onClick={() => setSelectedProduct(item)} className="product-scroll-anim">
                   <div className="product-card-container" style={{ position: 'relative' }}>
                     {isAdmin && <div className="delete-icon" onClick={(e) => handleDeleteProduct(item.id, e)}>🗑️</div>}
                     <div className="product-bg">
@@ -492,7 +530,6 @@ function App() {
             <div className="footer-column">
               <h4>Соцмережі</h4>
               <span>Instagram</span>
-              {/* КЛИКАБЕЛЬНЫЙ TELEGRAM */}
               <span onClick={() => window.open('https://t.me/+4E96rGDoMpAwZThi', '_blank')} style={{ cursor: 'pointer' }}>Telegram</span>
               <span>TikTok</span>
             </div>
@@ -545,7 +582,7 @@ function App() {
         </div>
       )}
 
-      {/* ========== МОДАЛЬНОЕ ОКНО ПРАВИЛ ========== */}
+      {/* Модальное окно правил */}
       {isRulesOpen && (
         <div className="rules-overlay" onClick={() => setIsRulesOpen(false)}>
           <div className="rules-modal" onClick={e => e.stopPropagation()}>
@@ -556,26 +593,16 @@ function App() {
               <img src="images/rules2.jpg" alt="Правило 2" />
             </div>
             <div className="rules-text">
-              ✔️ПЕРЕД ЗАМОВЛЕННЯМ УВАЖНО ПРОЧИТАТИ ЦІ ПРАВИЛА ✔️
-              <br/><br/>
-              ТОВАР ЇДЕ ТІЛЬКИ ПІД ЗАМОВЛЕННЯ ( наявність мається на увазі у постачальника)👍
-              <br/><br/>
-              ТЕРМІН ДІЇ ДОСТАВКИ 8-15 ДНІВ 🌐
-              <br/><br/>
-              ПОВЕРНЕННЯ КОШТІВ/РЕЧЕЙ В НАС НЕ МАЄ ( менеджер замовляє товар для вас під ваші критерії ) ТОМУ У РАЗІ ВІДМОВИ ТОВАР ТА КОШТИ ПОВЕРНЕННЮ НЕ ПІДЛЯГАЮТЬ 🤖
-              <br/><br/>
-              НАШ МАГАЗИН ГАРАНТУЄ ЯКІСТЬ ТОВАРУ ТА БЕЗПЕКУ ПРИ ЗАМОВЛЕННІ В НАШОМУ МАГАЗИНІ ⚡️
-              <br/><br/>
-              ЯКЩО ВИ ДЕСЬ ЗРОБИЛИ ПОМИЛКУ ПРИ ЗАМОВЛЕННІ (вказали невірну вагу або зріст, або вказали невірні данні для доставки ) ПОПЕРЕДЖАЙТЕ ОДРАЗУ ПРО ЦЕ МЕНЕДЖЕРА✅
-              <br/><br/>
-              ВІДМОВА АБО ОБМІН ТОВАРУ Є , АЛЕ В ВИПАДКУ ЯКЩО НЕ ПІДІЙДЕ РОЗМІР, КОЛІР АБО ЯКІСТЬ 📦
-              <br/><br/>
-              ПЕРЕД ЗАМОВЛЕННЯМИ ВИ ПОВИННІ РОЗУМІТИ ЩО ЦІНИ В ТГК ВКАЗАННІ БЕЗ УРАХУВАННЯ ДОСТАВКИ ,ТРЕБА ВРАХОВУВАТИ ЩО ДОСТАВКА 1кг = 18$📈
-              <br/><br/>
-              ПЕРША ТА ДРУГА ОПЛАТА НЕ ПОВЕРТАЮТЬСЯ ЯКЩО ВИ ПРОСТО ВІДМОВЛЯЄТЕСЬ І НЕ ХОЧЕТЕ ПЛАТИТИ ДОСТАВКУ🎁 
-              <br/><br/>
-              НЕ ПРОЧИТАННЯ ПРАВИЛ НЕ СКАСОВУЄ ВІДПОВІДАЛЬНІСТЬ 🚫
-              <br/><br/>
+              ✔️ПЕРЕД ЗАМОВЛЕННЯМ УВАЖНО ПРОЧИТАТИ ЦІ ПРАВИЛА ✔️<br/><br/>
+              ТОВАР ЇДЕ ТІЛЬКИ ПІД ЗАМОВЛЕННЯ ( наявність мається на увазі у постачальника)👍<br/><br/>
+              ТЕРМІН ДІЇ ДОСТАВКИ 8-15 ДНІВ 🌐<br/><br/>
+              ПОВЕРНЕННЯ КОШТІВ/РЕЧЕЙ В НАС НЕ МАЄ ( менеджер замовляє товар для вас під ваші критерії ) ТОМУ У РАЗІ ВІДМОВИ ТОВАР ТА КОШТИ ПОВЕРНЕННЮ НЕ ПІДЛЯГАЮТЬ 🤖<br/><br/>
+              НАШ МАГАЗИН ГАРАНТУЄ ЯКІСТЬ ТОВАРУ ТА БЕЗПЕКУ ПРИ ЗАМОВЛЕННІ В НАШОМУ МАГАЗИНІ ⚡️<br/><br/>
+              ЯКЩО ВИ ДЕСЬ ЗРОБИЛИ ПОМИЛКУ ПРИ ЗАМОВЛЕННІ (вказали невірну вагу або зріст, або вказали невірні данні для доставки ) ПОПЕРЕДЖАЙТЕ ОДРАЗУ ПРО ЦЕ МЕНЕДЖЕРА✅<br/><br/>
+              ВІДМОВА АБО ОБМІН ТОВАРУ Є , АЛЕ В ВИПАДКУ ЯКЩО НЕ ПІДІЙДЕ РОЗМІР, КОЛІР АБО ЯКІСТЬ 📦<br/><br/>
+              ПЕРЕД ЗАМОВЛЕННЯМИ ВИ ПОВИННІ РОЗУМІТИ ЩО ЦІНИ В ТГК ВКАЗАННІ БЕЗ УРАХУВАННЯ ДОСТАВКИ ,ТРЕБА ВРАХОВУВАТИ ЩО ДОСТАВКА 1кг = 18$📈<br/><br/>
+              ПЕРША ТА ДРУГА ОПЛАТА НЕ ПОВЕРТАЮТЬСЯ ЯКЩО ВИ ПРОСТО ВІДМОВЛЯЄТЕСЬ І НЕ ХОЧЕТЕ ПЛАТИТИ ДОСТАВКУ🎁<br/><br/>
+              НЕ ПРОЧИТАННЯ ПРАВИЛ НЕ СКАСОВУЄ ВІДПОВІДАЛЬНІСТЬ 🚫<br/><br/>
               ТОМУ УВАЖНО ЧИТАЙТЕ УМОВИ ПЕРЕД ОФОРМЛЕННЯМ ЗАМОВЛЕННЯ🚨
             </div>
           </div>
@@ -583,6 +610,7 @@ function App() {
       )}
 
       <style>{`
+        /* ========== ВСЕ ВАШИ СТИЛИ (ПОЛНОСТЬЮ СОХРАНЕНЫ) ========== */
         * { scrollbar-width: none; -ms-overflow-style: none; }
         *::-webkit-scrollbar { display: none; }
         @keyframes rotate3d { 0% { transform: rotateY(0deg); } 100% { transform: rotateY(360deg); } }
@@ -679,7 +707,6 @@ function App() {
         .hero-text-anim { font-size: clamp(60px, 18vw, 150px); font-weight: 900; margin: 0; line-height: 0.8; text-shadow: 2px 4px 10px rgba(0,0,0,0.15); text-align: center; }
         .придбати-btn { margin-top: 30px; padding: 12px 35px; border: 2px solid #1a73e8; background: #1a73e8; color: #fff; cursor: pointer; font-weight: 900; border-radius: 50px; font-size: 14px; transition: all 0.3s ease; display: inline-block; }
         .придбати-btn:hover { transform: translateY(-5px) scale(1.05); box-shadow: 0 10px 20px rgba(26,115,232,0.4); background: #0056b3; border-color: #0056b3; }
-        /* Стили модалки правил */
         .rules-overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.85); backdrop-filter: blur(4px); display: flex; align-items: center; justify-content: center; z-index: 7000; padding: 20px; box-sizing: border-box; }
         .rules-modal { background: #1a1a1a; color: #fff; max-width: 600px; width: 100%; max-height: 90vh; overflow-y: auto; border-radius: 28px; padding: 28px 24px; position: relative; box-shadow: 0 25px 50px -12px rgba(0,0,0,0.5); scrollbar-width: thin; }
         .rules-modal::-webkit-scrollbar { width: 5px; }
