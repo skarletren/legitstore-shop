@@ -194,15 +194,16 @@ Total Duration: ${c-l}ms`),z.resolve({didRun:!0,sequenceNumbersCollected:r,targe
           border-color: #0056b3;
         }
         
-        /* Табличка "О магазине" с плавным переливанием */
-        @keyframes cardShimmer {
-          0% { background-position: 0% 0%; }
-          100% { background-position: 200% 0%; }
+        /* Табличка "О магазине" с мягким переливом без движущейся волны */
+        @keyframes softShimmer {
+          0% { background-color: #1a73e8; }
+          25% { background-color: #4a90e2; }
+          50% { background-color: #87CEEB; }
+          75% { background-color: #4a90e2; }
+          100% { background-color: #1a73e8; }
         }
         .about-store-card {
-          background: linear-gradient(135deg, #1a73e8, #001a4d, #1a73e8);
-          background-size: 200% 100%;
-          animation: cardShimmer 6s linear infinite;
+          animation: softShimmer 8s ease-in-out infinite;
           backdrop-filter: blur(10px);
           border-radius: 25px;
           padding: 25px 35px;
