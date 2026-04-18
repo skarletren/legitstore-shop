@@ -194,37 +194,34 @@ Total Duration: ${c-l}ms`),z.resolve({didRun:!0,sequenceNumbersCollected:r,targe
           border-color: #0056b3;
         }
         
-        /* Табличка "О магазине" с мягким переливом без движущейся волны */
-        @keyframes softShimmer {
-          0% { background-color: #1a73e8; }
-          25% { background-color: #4a90e2; }
-          50% { background-color: #87CEEB; }
-          75% { background-color: #4a90e2; }
-          100% { background-color: #1a73e8; }
+        /* Табличка "О магазине" — чистая анимация влево (синий-голубой) */
+        @keyframes gradientShiftLeft {
+          0% { background-position: 0% 0%; }
+          100% { background-position: 100% 0%; }
         }
         .about-store-card {
-          animation: softShimmer 8s ease-in-out infinite;
-          backdrop-filter: blur(10px);
+          background: linear-gradient(to left, #1a73e8, #87CEEB, #1a73e8, #87CEEB);
+          background-size: 200% 100%;
+          animation: gradientShiftLeft 8s linear infinite;
           border-radius: 25px;
           padding: 25px 35px;
           max-width: 600px;
           margin: 0 auto;
           text-align: left;
           color: #fff;
-          box-shadow: 0 15px 35px rgba(0,0,0,0.2);
-          border: 1px solid rgba(255,255,255,0.2);
+          border: none;
         }
         .about-store-card p {
           margin: 8px 0;
           font-size: 16px;
           line-height: 1.5;
           font-weight: 500;
-          text-shadow: 0 1px 3px rgba(0,0,0,0.3);
+          text-shadow: none;
         }
         .about-store-card strong {
           font-size: 18px;
           color: #fff;
-          text-shadow: 0 2px 5px rgba(0,0,0,0.3);
+          text-shadow: none;
         }
         
         /* Мобильная версия */
